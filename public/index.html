@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Go OAuth2 Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- <link rel="stylesheet" type="text/css" media="screen" href="main.css" /> -->
+  <!-- <script src="main.js"></script> -->
+</head>
+
+<body>
+  <a id="login-link">Login with github</a>
+</body>
+
+<script>
+  // Function to generate a UUID
+  function generateUUID() {
+      return crypto.randomUUID();
+  }
+
+  // Function to set a cookie with the UUID
+  function setCookie(name, value, days) {
+      var expires = "";
+      if (days) {
+          var date = new Date();
+          date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+          expires = "; expires=" + date.toUTCString();
+      }
+      document.cookie = name + "=" + value + expires + "; path=/";
+  }
+
+  // Generate UUID and store it as a cookie
+  var uuidToken = generateUUID();
+  localStorage.setItem("frontend_token", uuidToken);
+
+  console.log("UUID Token:", uuidToken);
+
+  let loginLink = document.querySelector("a#login-link");
+  loginLink.href = `https://github.com/login/oauth/authorize?client_id=fb2caca79be2429240a5&redirect_uri=http://localhost:8080/oauth/redirect?session_token=${uuidToken}`;
+</script>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>Hello</title>
+</head>
+
+<body>
+  <p>You are authed! Congrats.</p>
+  <p id="announce-name"></p>
+
+</body>
+<script>
+  let announceNameArea = document.querySelector("p#announce-name");
+
+	function checkAuthentication(sessionToken) {
+    // Replace "http://localhost:8080/auth" with the actual URL of your auth endpoint
+    const authEndpoint = "http://localhost:8080/auth?session_token=" + sessionToken;
+
+    // Make a fetch request to the auth endpoint
+    fetch(authEndpoint, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+      console.log(data);
+      // Check if the authentication was successful
+      if (data.session_token) {
+          // User is authenticated
+          announceNameArea.innerHTML = `Welcome ${data.name}`;
+      } else {
+          // User is not authenticated
+          announceNameArea.innerHTML = "...Nevermind, user is not authenticated. Please log in.";
+          console.log("User is not authenticated. Please log in.");
+      }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+  }
+
+  const sessionToken = localStorage.getItem("frontend_token");
+  checkAuthentication(sessionToken);
+</script>
+
+</html>
