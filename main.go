@@ -2,12 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"path"
 
 	"github.com/charmbracelet/log"
+	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -17,158 +22,223 @@ func main() {
 		log.Fatal("Did you create and fill a '.env' file?", "err", err)
 	}
 
-	clientID := os.Getenv("GITHUB_OAUTH_CLIENT_ID")
-	clientSecret := os.Getenv("GITHUB_OAUTH_CLIENT_SECRET")
-
-	// Add my auth DB here
+	// TODO: Add my auth DB here
 	dummyAuthDB := []DummySessionAccessTokenTuple{}
 
-	fs := http.FileServer(http.Dir("public"))
-	http.Handle("/", fs)
+	r := chi.NewRouter()
+	r.Get("/login", func(w http.ResponseWriter, r *http.Request) {
+		pageData := HomePageData{
+			// TODO
+		}
 
-	// We will be using `httpClient` to make external HTTP requests later in our code
-	httpClient := http.Client{}
-
-	// Create a new redirect route route
-	http.HandleFunc("/oauth/redirect", func(w http.ResponseWriter, r *http.Request) {
-		// First, we need to get the value of the `code` query param
-		err := r.ParseForm()
+		_, err := getSessionToken(r)
 		if err != nil {
-			fmt.Fprintf(os.Stdout, "could not parse query: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		code := r.FormValue("code")
-		sessionToken := r.URL.Query().Get("session_token")
-		if len(sessionToken) == 0 {
-			fmt.Fprintf(os.Stdout, "session token missing: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+			switch {
+			case errors.Is(err, http.ErrNoCookie):
+				log.Info("Session token not found, generating a new one")
 
-		// get our access token
-		reqURL := fmt.Sprintf("https://github.com/login/oauth/access_token?client_id=%s&client_secret=%s&code=%s", clientID, clientSecret, code)
-		req, err := http.NewRequest(http.MethodPost, reqURL, nil)
+				newSessionTokenBytes, err := exec.Command("uuidgen").Output()
+				if err != nil {
+					log.Fatal(err)
+				}
+				token := string(newSessionTokenBytes)
+				cookie := http.Cookie{
+					Name:     "session_token",
+					Value:    token,
+					Path:     "/",
+					MaxAge:   3600,
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteLaxMode,
+				}
+				http.SetCookie(w, &cookie)
+			default:
+				log.Error(err)
+				http.Error(w, "server error", http.StatusInternalServerError)
+				return
+			}
+		}
+		
+		fp := path.Join("templates", "login.html")
+		tmpl, err := template.ParseFiles(fp)
 		if err != nil {
-			fmt.Fprintf(os.Stdout, "could not create HTTP request: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		req.Header.Set("accept", "application/json")
 
-		// Send out the HTTP request
-		res, err := httpClient.Do(req)
+		if err := tmpl.Execute(w, pageData); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		token, err := getSessionToken(r)
 		if err != nil {
-			fmt.Fprintf(os.Stdout, "could not send HTTP request: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			switch {
+			case errors.Is(err, http.ErrNoCookie):
+				http.Error(w, "cookie not found", http.StatusBadRequest)
+				w.Header().Set("Location", "/")
+			default:
+				log.Error(err)
+				http.Error(w, "server error", http.StatusInternalServerError)
+			}
 			return
 		}
-		defer res.Body.Close()
-
-		// Parse the request body into the `OAuthAccessResponse` struct
-		var t OAuthAccessResponse
-		if err := json.NewDecoder(res.Body).Decode(&t); err != nil {
-			fmt.Fprintf(os.Stdout, "could not parse JSON response: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		// Make a request to the GitHub API with the access token
-		gitHubURL := "https://api.github.com/user"
-		gitHubRequest, err := http.NewRequest("GET", gitHubURL, nil)
-		if err != nil {
-			fmt.Println("Error creating GitHub request:", err)
-			return
-		}
-
-		// Include the access token in the Authorization header
-		gitHubRequest.Header.Set("Authorization", "token "+t.AccessToken)
-
-		// Make the request to the GitHub API
-		gitHubResponse, err := http.DefaultClient.Do(gitHubRequest)
-		if err != nil {
-			fmt.Println("Error making GitHub request:", err)
-			return
-		}
-		defer gitHubResponse.Body.Close()
-
-		// Check if the GitHub response status code is OK
-		if gitHubResponse.StatusCode != http.StatusOK {
-			fmt.Println("Error:", gitHubResponse.Status)
-			return
-		}
-
-		// Read the GitHub response body
-		gitHubBody, err := io.ReadAll(gitHubResponse.Body)
-		if err != nil {
-			fmt.Println("Error reading GitHub response body:", err)
-			return
-		}
-
-		// Parse the GitHub JSON response
-		var gitHubUser GitHubUser
-		err = json.Unmarshal(gitHubBody, &gitHubUser)
-		if err != nil {
-			fmt.Println("Error decoding GitHub JSON:", err)
+		session, found := authHandler(w, r, dummyAuthDB, token)
+		if !found {
+			http.Error(w, "Couldn't find your token in my db", http.StatusUnauthorized)
 			return
 		}
 		
-		// dump the session token and the access token together in a fake db
-		DummySessionAccessTokenTuple := DummySessionAccessTokenTuple{
-			SessionToken: sessionToken,
-			AccessToken:  t.AccessToken,
-			Name: gitHubUser.Name,
+		fp := path.Join("templates", "index.html")
+		tmpl, err := template.ParseFiles(fp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		dummyAuthDB = append(dummyAuthDB, DummySessionAccessTokenTuple)
 
-		// Finally, send a response to redirect the user to the "welcome" page
-		// TODO: Go back to whatever page they were trying to access in the first place
-		w.Header().Set("Location", "/welcome.html")
-		w.WriteHeader(http.StatusFound)
+		if err := tmpl.Execute(w, session); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	})
 
-	http.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
-		authHandler(w, r, dummyAuthDB)
+	r.Get("/oauth/redirect", func(w http.ResponseWriter, r *http.Request) {
+		githubOauthRedirectHandler(w, r, &dummyAuthDB)
 	})
 
 	log.Info("Starting server..")
 
-	err = http.ListenAndServe("localhost:8080", nil)
+	err = http.ListenAndServe("localhost:8080", r)
 	if err != nil {
-		log.Fatal("Couldn't start the server", "err", err)
+		log.Fatal("Couldn't start the server")
 	}
 }
 
-func authHandler(w http.ResponseWriter, r *http.Request, authDB []DummySessionAccessTokenTuple) {
-	// Get the session token from the query parameters
-	sessionToken := r.URL.Query().Get("session_token")
+func githubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, authDB *[]DummySessionAccessTokenTuple) {
+	clientID := os.Getenv("GITHUB_OAUTH_CLIENT_ID")
+	clientSecret := os.Getenv("GITHUB_OAUTH_CLIENT_SECRET")
 
-	// Search for the session token in the dummyAuthDB
+	err := r.ParseForm()
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "could not parse query: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	code := r.FormValue("code")
+	sessionToken, err := getSessionToken(r)
+	if err != nil || len(sessionToken) == 0 {
+		fmt.Fprintf(os.Stdout, "session token missing: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// get our access token
+	reqURL := fmt.Sprintf("https://github.com/login/oauth/access_token?client_id=%s&client_secret=%s&code=%s", clientID, clientSecret, code)
+	req, err := http.NewRequest(http.MethodPost, reqURL, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "could not create HTTP request: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	req.Header.Set("accept", "application/json")
+
+	// Send out the HTTP request
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "could not send HTTP request: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer res.Body.Close()
+
+	// Parse the request body into the `OAuthAccessResponse` struct
+	var t OAuthAccessResponse
+	if err := json.NewDecoder(res.Body).Decode(&t); err != nil {
+		fmt.Fprintf(os.Stdout, "could not parse JSON response: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Make a request to the GitHub API with the access token
+	gitHubURL := "https://api.github.com/user"
+	gitHubRequest, err := http.NewRequest("GET", gitHubURL, nil)
+	if err != nil {
+		fmt.Println("Error creating GitHub request:", err)
+		return
+	}
+
+	// Include the access token in the Authorization header
+	gitHubRequest.Header.Set("Authorization", "token "+t.AccessToken)
+
+	// Make the request to the GitHub API
+	gitHubResponse, err := http.DefaultClient.Do(gitHubRequest)
+	if err != nil {
+		fmt.Println("Error making GitHub request:", err)
+		return
+	}
+	defer gitHubResponse.Body.Close()
+
+	// Check if the GitHub response status code is OK
+	if gitHubResponse.StatusCode != http.StatusOK {
+		fmt.Println("Error:", gitHubResponse.Status)
+		return
+	}
+
+	// Read the GitHub response body
+	gitHubBody, err := io.ReadAll(gitHubResponse.Body)
+	if err != nil {
+		fmt.Println("Error reading GitHub response body:", err)
+		return
+	}
+
+	// Parse the GitHub JSON response
+	var gitHubUser GitHubUser
+	err = json.Unmarshal(gitHubBody, &gitHubUser)
+	if err != nil {
+		fmt.Println("Error decoding GitHub JSON:", err)
+		return
+	}
+	
+	// dump the session token and the access token together in a fake db
+	DummySessionAccessTokenTuple := DummySessionAccessTokenTuple{
+		SessionToken: sessionToken,
+		AccessToken:  t.AccessToken,
+		Name: gitHubUser.Name,
+	}
+	*authDB = append(*authDB, DummySessionAccessTokenTuple)
+
+	// Finally, send a response to redirect the user to the "welcome" page
+	// TODO: Go back to whatever page they were trying to access in the first place
+	w.Header().Set("Location", "/")
+	w.WriteHeader(http.StatusFound)
+}
+
+func authHandler(w http.ResponseWriter, r *http.Request, authDB []DummySessionAccessTokenTuple, sessionToken string) (DummySessionAccessTokenTuple, bool) {
+	found := false
 	var dbEntry DummySessionAccessTokenTuple
 	for _, tuple := range authDB {
 		if tuple.SessionToken == sessionToken {
 			dbEntry = tuple
+			found = true
 			break
 		}
 	}
+	return dbEntry, found
+}
 
-	// Prepare the response in JSON format
-	response := dbEntry
-
-	// Convert the response to JSON
-	jsonResponse, err := json.Marshal(response)
+func getSessionToken(r *http.Request) (string, error) {
+	cookie, err := r.Cookie("session_token")
 	if err != nil {
-		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
-		return
+		return "", err
 	}
+	return cookie.Value, nil
+}
 
-	// Set the content type and write the JSON response
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(jsonResponse)
-	if err != nil {
-		http.Error(w, "Error responding to request", http.StatusInternalServerError)
-		return
-	}
+type HomePageData struct {
+	ClientID      string
+	RedirectURI   string
+	SessionToken  string
+	LoginLinkText string
 }
 
 type GitHubUser struct {

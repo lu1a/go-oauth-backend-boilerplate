@@ -3,11 +3,15 @@ module github.com/lu1a/go-oauth-backend-boilerplate
 go 1.21.1
 
 require (
+	github.com/charmbracelet/log v0.3.0
+	github.com/go-chi/chi/v5 v5.0.10
+	github.com/joho/godotenv v1.5.1
+)
+
+require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/lipgloss v0.9.1 // indirect
-	github.com/charmbracelet/log v0.3.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
