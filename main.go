@@ -207,7 +207,6 @@ func githubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, authDB *
 	}
 	*authDB = append(*authDB, DummySessionAccessTokenTuple)
 
-	// Finally, send a response to redirect the user to the "welcome" page
 	// TODO: Go back to whatever page they were trying to access in the first place
 	w.Header().Set("Location", "/")
 	w.WriteHeader(http.StatusFound)
