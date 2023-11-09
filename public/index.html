@@ -20,24 +20,16 @@
       return crypto.randomUUID();
   }
 
-  // Function to set a cookie with the UUID
-  function setCookie(name, value, days) {
-      var expires = "";
-      if (days) {
-          var date = new Date();
-          date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-          expires = "; expires=" + date.toUTCString();
-      }
-      document.cookie = name + "=" + value + expires + "; path=/";
+  // Generate UUID and store it as a cookie
+  let sessionToken = localStorage.getItem("frontend_token");
+  if (!sessionToken) {
+    sessionToken = generateUUID();
+    localStorage.setItem("frontend_token", sessionToken);
   }
 
-  // Generate UUID and store it as a cookie
-  var uuidToken = generateUUID();
-  localStorage.setItem("frontend_token", uuidToken);
-
-  console.log("UUID Token:", uuidToken);
+  console.log("UUID Token:", sessionToken);
 
   let loginLink = document.querySelector("a#login-link");
-  loginLink.href = `https://github.com/login/oauth/authorize?client_id=fb2caca79be2429240a5&redirect_uri=http://localhost:8080/oauth/redirect?session_token=${uuidToken}`;
+  loginLink.href = `https://github.com/login/oauth/authorize?client_id=fb2caca79be2429240a5&redirect_uri=http://localhost:8080/oauth/redirect?session_token=${sessionToken}`;
 </script>
 </html>
