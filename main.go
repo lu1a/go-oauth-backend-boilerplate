@@ -76,8 +76,7 @@ func main() {
 		if err != nil {
 			switch {
 			case errors.Is(err, http.ErrNoCookie):
-				http.Error(w, "cookie not found", http.StatusBadRequest)
-				w.Header().Set("Location", "/")
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
 			default:
 				log.Error(err)
 				http.Error(w, "server error", http.StatusInternalServerError)
@@ -86,7 +85,7 @@ func main() {
 		}
 		session, found := authHandler(w, r, dummyAuthDB, token)
 		if !found {
-			http.Error(w, "Couldn't find your token in my db", http.StatusUnauthorized)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 		
