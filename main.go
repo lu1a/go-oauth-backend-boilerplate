@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	"github.com/lu1a/go-oauth-backend-boilerplate/middleware/auth"
+	"github.com/lu1a/go-oauth-backend-boilerplate/types"
 )
 
 func main() {
@@ -20,6 +21,12 @@ func main() {
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatal("Did you create and fill a '.env' file?", "err", err)
+	}
+	config := types.Config{
+		GitHubClientID:     os.Getenv("GITHUB_OAUTH_CLIENT_ID"),
+		GitHubClientSecret: os.Getenv("GITHUB_OAUTH_CLIENT_SECRET"),
+
+		DBConnectionURL: os.Getenv("DB_CONNECTION_URL"),
 	}
 
 	// TODO: Add my auth DB here
@@ -91,7 +98,7 @@ func main() {
 	})
 
 	r.Get("/oauth/redirect", func(w http.ResponseWriter, r *http.Request) {
-		auth.GithubOauthRedirectHandler(w, r, *log, &dummyAuthDB)
+		auth.GithubOauthRedirectHandler(w, r, *log, config, &dummyAuthDB)
 	})
 
 	log.Info("Starting server..")

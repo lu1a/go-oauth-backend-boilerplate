@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/charmbracelet/log"
 	"github.com/lu1a/go-oauth-backend-boilerplate/db"
+	"github.com/lu1a/go-oauth-backend-boilerplate/types"
 )
 
 func AuthMiddleware(next http.Handler, dummyAuthDB *[]DummySessionAccessTokenTuple) func(next http.Handler) http.Handler {
@@ -69,10 +69,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request, authDB *[]DummySessionA
 	return dbEntry, found
 }
 
-func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.Logger, authDB *[]DummySessionAccessTokenTuple) {
-	clientID := os.Getenv("GITHUB_OAUTH_CLIENT_ID")
-	clientSecret := os.Getenv("GITHUB_OAUTH_CLIENT_SECRET")
-
+func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.Logger, config types.Config, authDB *[]DummySessionAccessTokenTuple) {
 	err := r.ParseForm()
 	if err != nil {
 		log.Errorf("could not parse query: %v", err)
@@ -88,7 +85,7 @@ func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.
 	}
 
 	// get our access token
-	reqURL := fmt.Sprintf("https://github.com/login/oauth/access_token?client_id=%s&client_secret=%s&code=%s", clientID, clientSecret, code)
+	reqURL := fmt.Sprintf("https://github.com/login/oauth/access_token?client_id=%s&client_secret=%s&code=%s", config.GitHubClientID, config.GitHubClientSecret, code)
 	req, err := http.NewRequest(http.MethodPost, reqURL, nil)
 	if err != nil {
 		log.Errorf("could not create HTTP request: %v", err)
