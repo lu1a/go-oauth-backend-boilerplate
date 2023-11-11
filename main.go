@@ -62,7 +62,7 @@ func main() {
 				return
 			}
 		}
-		
+
 		fp := path.Join("templates", "login.html")
 		tmpl, err := template.ParseFiles(fp)
 		if err != nil {

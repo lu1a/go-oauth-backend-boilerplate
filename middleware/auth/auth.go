@@ -42,7 +42,7 @@ func AuthMiddleware(next http.Handler, dummyAuthDB *[]DummySessionAccessTokenTup
 			}
 
 			ctx := context.WithValue(r.Context(), DummySessionAccessTokenTuple{}, session)
-	
+
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -153,12 +153,12 @@ func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.
 		log.Errorf("Error decoding GitHub JSON: %v", err)
 		return
 	}
-	
+
 	// dump the session token and the access token together in a fake db
 	dummySessionAccessTokenTuple := DummySessionAccessTokenTuple{
 		SessionToken: sessionToken,
 		AccessToken:  t.AccessToken,
-		Name: gitHubUser.Name,
+		Name:         gitHubUser.Name,
 	}
 	*authDB = append(*authDB, dummySessionAccessTokenTuple)
 
@@ -172,6 +172,6 @@ type OAuthAccessResponse struct {
 
 type DummySessionAccessTokenTuple struct {
 	SessionToken string `json:"session_token"`
-	AccessToken string `json:"-"`
-	Name string `json:"name"`
+	AccessToken  string `json:"-"`
+	Name         string `json:"name"`
 }

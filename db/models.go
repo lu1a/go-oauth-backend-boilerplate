@@ -3,10 +3,10 @@ package db
 import "time"
 
 type Account struct {
-    AccountID    int    `json:"account_id" db:"account_id"`
-    Name         string `json:"name" db:"name"`
-    Email        string `json:"email" db:"email"`
-    Country      string `json:"country" db:"country"`
+	AccountID int    `json:"account_id" db:"account_id"`
+	Name      string `json:"name" db:"name"`
+	Email     string `json:"email" db:"email"`
+	Country   string `json:"country" db:"country"`
 }
 
 type GitHubAccountProfile struct {
@@ -46,8 +46,8 @@ type GitHubAccountProfile struct {
 }
 
 type Session struct {
-    SessionID              int    `json:"session_id" db:"session_id"`
-    SessionToken           string `json:"session_token" db:"session_token"`
-    AccountID              int    `json:"account_id" db:"account_id"`
-    GitHubAccountProfileID int    `json:"github_account_profile_id" db:"github_account_profile_id"`
+	SessionID              int    `json:"session_id" db:"session_id"`
+	SessionToken           string `json:"session_token" db:"session_token"`
+	AccountID              int    `json:"account_id" db:"account_id"`
+	GitHubAccountProfileID int    `json:"github_account_profile_id" db:"github_account_profile_id"`
 }
