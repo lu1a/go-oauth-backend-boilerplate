@@ -31,7 +31,7 @@ func main() {
 	r.Use(mw)
 
 	r.Get("/login", func(w http.ResponseWriter, r *http.Request) {
-		pageData := HomePageData{
+		pageData := LoginPageData{
 			// TODO
 		}
 
@@ -102,7 +102,7 @@ func main() {
 	}
 }
 
-type HomePageData struct {
+type LoginPageData struct {
 	ClientID      string
 	RedirectURI   string
 	SessionToken  string
