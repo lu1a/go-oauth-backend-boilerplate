@@ -8,9 +8,9 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/lu1a/go-oauth-backend-boilerplate/db"
 )
 
 func AuthMiddleware(next http.Handler, dummyAuthDB *[]DummySessionAccessTokenTuple) func(next http.Handler) http.Handler {
@@ -147,7 +147,7 @@ func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.
 	}
 
 	// Parse the GitHub JSON response
-	var gitHubUser GitHubUser
+	var gitHubUser db.GitHubAccountProfile
 	err = json.Unmarshal(gitHubBody, &gitHubUser)
 	if err != nil {
 		log.Errorf("Error decoding GitHub JSON: %v", err)
@@ -174,39 +174,4 @@ type DummySessionAccessTokenTuple struct {
 	SessionToken string `json:"session_token"`
 	AccessToken string `json:"-"`
 	Name string `json:"name"`
-}
-
-type GitHubUser struct {
-	AvatarURL         string    `json:"avatar_url"`
-	Bio               *string   `json:"bio"`
-	Blog              string    `json:"blog"`
-	Company           string    `json:"company"`
-	CreatedAt         time.Time `json:"created_at"`
-	Email             *string   `json:"email"`
-	EventsURL         string    `json:"events_url"`
-	Followers         int       `json:"followers"`
-	FollowersURL      string    `json:"followers_url"`
-	Following         int       `json:"following"`
-	FollowingURL      string    `json:"following_url"`
-	GistsURL          string    `json:"gists_url"`
-	GravatarID        string    `json:"gravatar_id"`
-	Hireable          *bool     `json:"hireable"`
-	HTMLURL           string    `json:"html_url"`
-	ID                float64   `json:"id"`
-	Location          string    `json:"location"`
-	Login             string    `json:"login"`
-	Name              string    `json:"name"`
-	NodeID            string    `json:"node_id"`
-	OrganizationsURL  string    `json:"organizations_url"`
-	PublicGists       int       `json:"public_gists"`
-	PublicRepos       int       `json:"public_repos"`
-	ReceivedEventsURL string    `json:"received_events_url"`
-	ReposURL          string    `json:"repos_url"`
-	SiteAdmin         bool      `json:"site_admin"`
-	StarredURL        string    `json:"starred_url"`
-	SubscriptionsURL  string    `json:"subscriptions_url"`
-	TwitterUsername   *string   `json:"twitter_username"`
-	Type              string    `json:"type"`
-	UpdatedAt         time.Time `json:"updated_at"`
-	URL               string    `json:"url"`
 }

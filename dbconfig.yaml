@@ -1,23 +1,23 @@
 production:
   dialect: postgres
   datasource: host=${DB_HOST} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=require
-  dir: internal/migrations
+  dir: db/migrations
   table: __migrations
 
 development:
   dialect: postgres
   datasource: host=${DB_HOST} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=require
-  dir: internal/migrations
+  dir: db/migrations
   table: __migrations
 
 local:
   dialect: postgres
   datasource: host=${DB_HOST} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=disable
-  dir: internal/migrations
+  dir: db/migrations
   table: __migrations
 
 local-docker:
   dialect: postgres
   datasource: dbname=postgres port=5432 sslmode=disable user=postgres password=postgres host=db
-  dir: internal/migrations
+  dir: db/migrations
   table: __migrations
