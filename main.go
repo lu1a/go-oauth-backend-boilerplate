@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
-	"github.com/lu1a/go-oauth-backend-boilerplate/auth"
+	"github.com/lu1a/go-oauth-backend-boilerplate/middleware/auth"
 )
 
 func main() {
