@@ -34,6 +34,6 @@ There will be:
 ```
 
 The `types.go` file in each sub-folder can be compiled into TypeScript for whatever frontend is using it,
-with some formatting to show what request inside the /api/account/... responds with a given struct.
+with some formatting to show what request inside the /api/account/[whatever] responds with a given struct.
 
-Needless to say this won't strictly follow REST or CRUD. A request will either be a `query` or a `mutation`.
+Needless to say this won't follow REST or CRUD. A request will either be a `query` or a `mutation`.
