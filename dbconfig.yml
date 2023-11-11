@@ -1,18 +1,18 @@
 production:
   dialect: postgres
-  datasource: host=${DB_HOST} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=require
+  datasource: host=${DB_HOST} port=${DB_PORT} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=require
   dir: db/migrations
   table: __migrations
 
 development:
   dialect: postgres
-  datasource: host=${DB_HOST} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=require
+  datasource: host=${DB_HOST} port=${DB_PORT} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=require
   dir: db/migrations
   table: __migrations
 
 local:
   dialect: postgres
-  datasource: host=${DB_HOST} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=disable
+  datasource: host=${DB_HOST} port=${DB_PORT} user=${DB_USERNAME} password=${DB_PASSWORD} sslmode=disable
   dir: db/migrations
   table: __migrations
 

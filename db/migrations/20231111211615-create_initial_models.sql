@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS account (
 CREATE TABLE IF NOT EXISTS github_account_profile (
     profile_id SERIAL PRIMARY KEY,
     account_id INTEGER REFERENCES account(account_id) ON DELETE CASCADE,
-    is_primary_profile BOOLEAN DEFAULT 0,
+    is_primary_profile BOOLEAN DEFAULT false,
     avatar_url TEXT,
     bio TEXT,
     blog TEXT,
