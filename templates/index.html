@@ -10,7 +10,43 @@
 
 <body>
   <p>You are authed! Congrats.</p>
-  <p id="announce-name">Welcome {{ .Name }}</p>
+  <img id="avatar" alt="account profile image" style="width:100px;height:100px;"/>
+  <p id="announce-name">Welcome </p>
 
 </body>
+
+<script>
+  const apiUrl = 'http://localhost:8080/api/auth';
+
+  function fetchData() {
+    fetch(apiUrl, {
+      method: 'GET',
+      credentials: "same-origin", // include cookies
+    })
+    .then(response => {
+      // Check if the response status is OK (200)
+      if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Handle the JSON response
+      console.log(data);
+      let announceName = document.querySelector("p#announce-name");
+      announceName.innerHTML = `Welcome ${data.name} from ${data.location}`;
+
+      let profileAvatar = document.querySelector("img#avatar");
+      profileAvatar.src = data.avatar_url;
+    })
+    .catch(error => {
+      // Handle errors
+      console.error('Fetch error:', error);
+      window.location.replace("http://localhost:8080/login");
+    });
+  }
+
+  // Call the function when the page loads or based on user interaction
+  fetchData();
+</script>
 </html>

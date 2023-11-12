@@ -27,7 +27,7 @@ func AuthMiddleware(next http.Handler, authDB *sqlx.DB) func(next http.Handler) 
 				case errors.Is(err, http.ErrNoCookie):
 					http.Error(w, "Not authorised, go log in", http.StatusUnauthorized)
 				default:
-					log.Error(err)
+					log.Error("Error getting session token", "error", err)
 					http.Error(w, "server error", http.StatusInternalServerError)
 				}
 				return
@@ -35,7 +35,7 @@ func AuthMiddleware(next http.Handler, authDB *sqlx.DB) func(next http.Handler) 
 
 			account, err := db.GetAccountBySession(authDB, token)
 			if err != nil {
-				log.Error(err)
+				log.Error("Error getting session from session token", "error", err)
 				http.Error(w, "Not authorised, go log in", http.StatusUnauthorized)
 				return
 			}

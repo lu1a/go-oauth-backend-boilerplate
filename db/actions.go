@@ -10,10 +10,10 @@ func GetAccountBySession(authDB *sqlx.DB, sessionToken string) (account Account,
 	query := `
 		SELECT account.* FROM account
 		JOIN session ON account.account_id = session.account_id
-		WHERE session.session_token = $1
+		WHERE trim(session.session_token) ILIKE $1
 	`
 
-	err = authDB.Get(&account, query, sessionToken)
+	err = authDB.Get(&account, query, sessionToken+"%")
 	if err != nil {
 		return account, err
 	}
@@ -26,36 +26,38 @@ func UpsertAccountViaGitHub(authDB *sqlx.DB, accessToken, sessionToken string, g
 	var count int
 	err = authDB.Get(&count, "SELECT COUNT(*) FROM github_account_profile WHERE user_profile_id = $1", gitHubUser.UserProfileID)
 	if err != nil {
-		return err
+		return fmt.Errorf("Checking if github user exists failed: %w", err)
 	}
 
 	// If it does, create a new session for the account
 	if count > 0 {
-		fmt.Printf("Record with ID %d exists.\n", gitHubUser.UserProfileID)
-
 		var sessionWithThisTokenCount int
 		err = authDB.Get(&sessionWithThisTokenCount, "SELECT COUNT(*) FROM session WHERE session_token = $1", sessionToken)
 		if err != nil {
-			return err
+			return fmt.Errorf("Checking sessions with this token failed: %w", err)
 		} else if sessionWithThisTokenCount > 0 {
 			return nil
 		}
 
-		_, err = authDB.Exec("INSERT INTO session (session_token, account_id, github_account_profile_id) VALUES($1, $2, $3)", sessionToken, gitHubUser.AccountID, gitHubUser.ProfileID)
+		var account Account
+		err = authDB.Get(&account, "SELECT account.* FROM account JOIN github_account_profile ON account.account_id = github_account_profile.account_id WHERE github_account_profile.user_profile_id = $1", gitHubUser.UserProfileID)
 		if err != nil {
-			return err
+			return fmt.Errorf("Getting existing account failed: %w", err)
+		}
+
+		_, err = authDB.Exec("INSERT INTO session (session_token, account_id, github_account_profile_id) VALUES($1, $2, $3)", sessionToken, account.AccountID, gitHubUser.ProfileID)
+		if err != nil {
+			return fmt.Errorf("Creating new session for existing account failed: %w", err)
 		}
 
 		return nil
 	}
 
 	// if it doesn't, create a new account, create a new gitHubUser, then create a new session for the account
-	fmt.Printf("Record with ID %d does not exist.\n", gitHubUser.UserProfileID)
-
 	var accountID int
-	err = authDB.QueryRow("INSERT INTO account (name, email, location) VALUES($1, $2, $3) RETURNING account_id", gitHubUser.Name, gitHubUser.Email, gitHubUser.Location).Scan(&accountID)
+	err = authDB.QueryRow("INSERT INTO account (name, email, location, avatar_url) VALUES($1, $2, $3, $4) RETURNING account_id", gitHubUser.Name, gitHubUser.Email, gitHubUser.Location, gitHubUser.AvatarURL).Scan(&accountID)
 	if err != nil {
-		return err
+		return fmt.Errorf("Creating new account failed: %w", err)
 	}
 	gitHubUser.AccountID = accountID
 
@@ -134,11 +136,11 @@ func UpsertAccountViaGitHub(authDB *sqlx.DB, accessToken, sessionToken string, g
 	`
 	_, err = authDB.NamedExec(gitHubAccountProfileInsertQuery, gitHubUser)
 	if err != nil {
-		return err
+		return fmt.Errorf("Creating new github profile failed: %w", err)
 	}
 	_, err = authDB.Exec("INSERT INTO session (session_token, account_id, github_account_profile_id) VALUES($1, $2, $3)", sessionToken, gitHubUser.AccountID, gitHubUser.ProfileID)
 	if err != nil {
-		return err
+		return fmt.Errorf("Creating new session failed: %w", err)
 	}
 
 	return nil

@@ -2,13 +2,10 @@ package auth
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
 	"os/exec"
-	"path"
 
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi/v5"
@@ -19,46 +16,6 @@ import (
 
 func AuthRouter(log log.Logger, dbInstance *sqlx.DB, config types.Config, r chi.Router) func(chi.Router) {
 	return func(r chi.Router) {
-		r.Get("/login", func(w http.ResponseWriter, r *http.Request) {
-			_, err := GetSessionToken(r)
-			if err != nil {
-				switch {
-				case errors.Is(err, http.ErrNoCookie):
-					log.Info("Session token not found, generating a new one")
-
-					newSessionTokenBytes, err := exec.Command("uuidgen").Output()
-					if err != nil {
-						log.Fatal(err)
-					}
-					token := string(newSessionTokenBytes)
-					cookie := http.Cookie{
-						Name:     "session_token",
-						Value:    token,
-						Path:     "/",
-						MaxAge:   3600,
-						HttpOnly: true,
-						Secure:   true,
-						SameSite: http.SameSiteLaxMode,
-					}
-					http.SetCookie(w, &cookie)
-				default:
-					log.Error(err)
-					http.Error(w, "server error", http.StatusInternalServerError)
-					return
-				}
-			}
-
-			fp := path.Join("templates", "login.html")
-			tmpl, err := template.ParseFiles(fp)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			if err := tmpl.Execute(w, struct{}{}); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		})
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			session := r.Context().Value(db.Account{})
 			if session == nil {
@@ -101,12 +58,6 @@ func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.
 		return
 	}
 	code := r.FormValue("code")
-	sessionToken, err := GetSessionToken(r)
-	if err != nil || len(sessionToken) == 0 {
-		log.Errorf("session token missing: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
 
 	// get our access token
 	reqURL := fmt.Sprintf("https://github.com/login/oauth/access_token?client_id=%s&client_secret=%s&code=%s", config.GitHubClientID, config.GitHubClientSecret, code)
@@ -175,6 +126,22 @@ func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.
 		return
 	}
 
+	newSessionTokenBytes, err := exec.Command("uuidgen").Output()
+	if err != nil {
+		log.Fatal(err)
+	}
+	sessionToken := string(newSessionTokenBytes)
+	cookie := http.Cookie{
+		Name:     "session_token",
+		Value:    sessionToken,
+		Path:     "/",
+		MaxAge:   3600,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, &cookie)
+
 	err = db.UpsertAccountViaGitHub(authDB, t.AccessToken, sessionToken, gitHubUser)
 	if err != nil {
 		log.Errorf("Couldn't upsert user to db: %v", err)
@@ -183,7 +150,7 @@ func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.
 	}
 
 	// TODO: Go back to whatever page they were trying to access in the first place
-	http.Redirect(w, r, "/api/auth/", http.StatusSeeOther)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 type OAuthAccessResponse struct {
