@@ -1,123 +1,70 @@
 package main
 
 import (
-	"errors"
-	"html/template"
-	"net/http"
 	"os"
-	"os/exec"
-	"path"
-
-	_ "github.com/lib/pq"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/go-chi/chi/v5"
-	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
-	"github.com/lu1a/go-oauth-backend-boilerplate/db"
-	"github.com/lu1a/go-oauth-backend-boilerplate/middleware/auth"
+	"github.com/lu1a/go-oauth-backend-boilerplate/service"
 	"github.com/lu1a/go-oauth-backend-boilerplate/types"
 )
 
 func main() {
-	log := log.New(os.Stdout)
-
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatal("Did you create and fill a '.env' file?", "err", err)
 	}
+
+	shutdownTimeout, err := time.ParseDuration(os.Getenv("SHUTDOWN_TIMEOUT"))
+	if err != nil {
+		log.Fatal("Pls set the shutdown timeout correctly", "err", err)
+	}
+
 	config := types.Config{
+		ShutdownTimeout: shutdownTimeout,
+
 		GitHubClientID:     os.Getenv("GITHUB_OAUTH_CLIENT_ID"),
 		GitHubClientSecret: os.Getenv("GITHUB_OAUTH_CLIENT_SECRET"),
 
 		DBConnectionURL: os.Getenv("DB_CONNECTION_URL"),
 	}
 
-	dbInstance, err := sqlx.Connect("postgres", config.DBConnectionURL)
+	err = runService(config)
 	if err != nil {
-		log.Fatal("error opening db: %v\n", err)
-	}
-
-	r := chi.NewRouter()
-
-	mw := auth.AuthMiddleware(http.DefaultServeMux, dbInstance)
-	r.Use(mw)
-
-	r.Get("/login", func(w http.ResponseWriter, r *http.Request) {
-		pageData := LoginPageData{
-			// TODO
-		}
-
-		_, err := auth.GetSessionToken(r)
-		if err != nil {
-			switch {
-			case errors.Is(err, http.ErrNoCookie):
-				log.Info("Session token not found, generating a new one")
-
-				newSessionTokenBytes, err := exec.Command("uuidgen").Output()
-				if err != nil {
-					log.Fatal(err)
-				}
-				token := string(newSessionTokenBytes)
-				cookie := http.Cookie{
-					Name:     "session_token",
-					Value:    token,
-					Path:     "/",
-					MaxAge:   3600,
-					HttpOnly: true,
-					Secure:   true,
-					SameSite: http.SameSiteLaxMode,
-				}
-				http.SetCookie(w, &cookie)
-			default:
-				log.Error(err)
-				http.Error(w, "server error", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		fp := path.Join("templates", "login.html")
-		tmpl, err := template.ParseFiles(fp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if err := tmpl.Execute(w, pageData); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		session := r.Context().Value(db.Account{})
-
-		fp := path.Join("templates", "index.html")
-		tmpl, err := template.ParseFiles(fp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if err := tmpl.Execute(w, session); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	r.Get("/oauth/redirect", func(w http.ResponseWriter, r *http.Request) {
-		auth.GithubOauthRedirectHandler(w, r, *log, dbInstance, config)
-	})
-
-	log.Info("Starting server..")
-
-	err = http.ListenAndServe("localhost:8080", r)
-	if err != nil {
-		log.Fatal("Couldn't start the server")
+		log.Fatal("Service failed to start normally", "err", err)
 	}
 }
 
-type LoginPageData struct {
-	ClientID      string
-	RedirectURI   string
-	SessionToken  string
-	LoginLinkText string
+func runService(config types.Config) error {
+	chInterrupt := make(chan os.Signal, 1)
+	chService := make(chan *service.Service)
+	log := log.New(os.Stdout)
+
+	var s = service.New(config, *log)
+
+	closeCtx, err := s.Start()
+	if err != nil {
+		log.Error("service start", "error", err)
+		os.Exit(1)
+	}
+	s.CloseNotify(closeCtx, chService)
+	signal.Notify(chInterrupt, os.Interrupt, syscall.SIGTERM)
+	select {
+	case <-chInterrupt:
+		log.Info("received SIGTERM, shutting down")
+		if err = s.Close(); err != nil {
+			log.Error("close service", "error", err)
+			os.Exit(1)
+		}
+	case <-chService:
+		if err = s.CloseError(); err != nil {
+			log.Error("close service", "error", err)
+			os.Exit(1)
+		}
+	}
+	log.Info("Shutdown complete")
+	return nil
 }
