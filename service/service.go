@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"path"
 	"sync"
@@ -102,11 +104,36 @@ func (s *Service) startAPI() (err error) {
 		}
 	})
 
-	err = http.ListenAndServe("localhost:8080", r)
-	if err != nil {
-		log.Fatal("Couldn't start the server")
+	if s.API, err = s.initHTTPServer(r); err != nil {
+		return err
 	}
 	return nil
+}
+
+func (s *Service) initHTTPServer(r *chi.Mux) (*http.Server, error) {
+	l, err := net.Listen("tcp", "localhost:8080")
+	if err != nil {
+		return nil, fmt.Errorf("create tcp listener: %w", err)
+	}
+
+	serv := &http.Server{
+		Addr:    "localhost:8080",
+		Handler: r,
+	}
+
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		err = serv.Serve(l)
+		if !errors.Is(err, http.ErrServerClosed) {
+			s.log.Error("API start", "error", err)
+			s.setCloseError(err)
+			if err = s.Close(); err != nil {
+				s.log.Error("API close", "error", err)
+			}
+		}
+	}()
+	return serv, nil
 }
 
 func (s *Service) Close() error {
@@ -124,29 +151,28 @@ func (s *Service) Close() error {
 		if s.API != nil {
 			s.log.Info("Closing API")
 			if err := s.API.Shutdown(ctx); err != nil {
-				s.log.Error("error closing api", "error", err)
+				s.log.Error("error closing API", "error", err)
 			}
 			s.API = nil
 		}
 
 		if s.db != nil {
-			s.log.Info("Closing db connection")
+			s.log.Info("Closing DB connection")
 			s.db.Close()
 			s.db = nil
 		}
 
 		s.closeDependencies()
 
-		s.log.Info("Waiting for daemon workers to finish")
+		s.log.Info("Waiting for Service workers to finish")
 		s.wg.Wait()
 	}()
 
 	select {
 	case <-chDone:
-		s.log.Info("shutdown completed")
 		return s.closeErr
 	case <-timeout:
-		s.closeErr = errors.New("timed out while waiting for dependencies to close")
+		s.closeErr = errors.New("Timed out while waiting for dependencies to close")
 		return s.closeErr
 	}
 }
@@ -159,12 +185,12 @@ func (s *Service) CloseNotify(ctx context.Context, chNotify chan<- *Service) {
 	}()
 }
 
-// func (s *Service) setCloseError(err error) {
-// 	s.serviceMutex.Lock()
-// 	defer s.serviceMutex.Unlock()
+func (s *Service) setCloseError(err error) {
+	s.serviceMutex.Lock()
+	defer s.serviceMutex.Unlock()
 
-// 	s.closeErr = err
-// }
+	s.closeErr = err
+}
 
 // CloseError is an accessor for retrieving a close error.
 func (s *Service) CloseError() error {
