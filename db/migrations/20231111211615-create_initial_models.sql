@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS account (
     account_id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT UNIQUE,
-    country TEXT,
+    location TEXT,
+    avatar_url TEXT,
     password_hash TEXT,
     password_salt TEXT
     -- TODO: Add other fields
@@ -12,6 +13,7 @@ CREATE TABLE IF NOT EXISTS account (
 CREATE TABLE IF NOT EXISTS github_account_profile (
     profile_id SERIAL PRIMARY KEY,
     account_id INTEGER REFERENCES account(account_id) ON DELETE CASCADE,
+    user_profile_id BIGINT UNIQUE,  -- the real ID from GitHub's side
     is_primary_profile BOOLEAN DEFAULT false,
     avatar_url TEXT,
     bio TEXT,
@@ -28,7 +30,6 @@ CREATE TABLE IF NOT EXISTS github_account_profile (
     gravatar_id TEXT,
     hireable BOOLEAN,
     html_url TEXT,
-    user_profile_id BIGINT,
     location TEXT,
     login TEXT,
     name TEXT,
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS github_account_profile (
 CREATE TABLE IF NOT EXISTS session (
     session_id SERIAL PRIMARY KEY,
     session_token TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     account_id INTEGER REFERENCES account(account_id) ON DELETE CASCADE,
     github_account_profile_id INTEGER REFERENCES github_account_profile(profile_id) ON DELETE CASCADE
 );
@@ -56,6 +58,6 @@ CREATE TABLE IF NOT EXISTS session (
 -- TODO: add other oauth provider profile tables
 
 -- +migrate Down
-DROP TABLE IF EXISTS account;
-DROP TABLE IF EXISTS github_account_profile;
 DROP TABLE IF EXISTS session;
+DROP TABLE IF EXISTS github_account_profile;
+DROP TABLE IF EXISTS account;

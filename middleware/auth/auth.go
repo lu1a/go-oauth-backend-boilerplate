@@ -9,11 +9,12 @@ import (
 	"net/http"
 
 	"github.com/charmbracelet/log"
+	"github.com/jmoiron/sqlx"
 	"github.com/lu1a/go-oauth-backend-boilerplate/db"
 	"github.com/lu1a/go-oauth-backend-boilerplate/types"
 )
 
-func AuthMiddleware(next http.Handler, dummyAuthDB *[]DummySessionAccessTokenTuple) func(next http.Handler) http.Handler {
+func AuthMiddleware(next http.Handler, authDB *sqlx.DB) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -35,13 +36,14 @@ func AuthMiddleware(next http.Handler, dummyAuthDB *[]DummySessionAccessTokenTup
 				return
 			}
 
-			session, found := AuthHandler(w, r, dummyAuthDB, token)
-			if !found {
+			account, err := db.GetAccountBySession(authDB, token)
+			if err != nil {
+				log.Error(err)
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), DummySessionAccessTokenTuple{}, session)
+			ctx := context.WithValue(r.Context(), db.Account{}, account)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -56,20 +58,7 @@ func GetSessionToken(r *http.Request) (string, error) {
 	return cookie.Value, nil
 }
 
-func AuthHandler(w http.ResponseWriter, r *http.Request, authDB *[]DummySessionAccessTokenTuple, sessionToken string) (DummySessionAccessTokenTuple, bool) {
-	found := false
-	var dbEntry DummySessionAccessTokenTuple
-	for _, tuple := range *authDB {
-		if tuple.SessionToken == sessionToken {
-			dbEntry = tuple
-			found = true
-			break
-		}
-	}
-	return dbEntry, found
-}
-
-func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.Logger, config types.Config, authDB *[]DummySessionAccessTokenTuple) {
+func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.Logger, authDB *sqlx.DB, config types.Config) {
 	err := r.ParseForm()
 	if err != nil {
 		log.Errorf("could not parse query: %v", err)
@@ -151,13 +140,12 @@ func GithubOauthRedirectHandler(w http.ResponseWriter, r *http.Request, log log.
 		return
 	}
 
-	// dump the session token and the access token together in a fake db
-	dummySessionAccessTokenTuple := DummySessionAccessTokenTuple{
-		SessionToken: sessionToken,
-		AccessToken:  t.AccessToken,
-		Name:         gitHubUser.Name,
+	err = db.UpsertAccountViaGitHub(authDB, t.AccessToken, sessionToken, gitHubUser)
+	if err != nil {
+		log.Errorf("Couldn't upsert user to db: %v", err)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
 	}
-	*authDB = append(*authDB, dummySessionAccessTokenTuple)
 
 	// TODO: Go back to whatever page they were trying to access in the first place
 	http.Redirect(w, r, "/", http.StatusSeeOther)

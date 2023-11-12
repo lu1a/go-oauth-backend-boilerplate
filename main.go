@@ -8,9 +8,13 @@ import (
 	"os/exec"
 	"path"
 
+	_ "github.com/lib/pq"
+
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi/v5"
+	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
+	"github.com/lu1a/go-oauth-backend-boilerplate/db"
 	"github.com/lu1a/go-oauth-backend-boilerplate/middleware/auth"
 	"github.com/lu1a/go-oauth-backend-boilerplate/types"
 )
@@ -29,12 +33,14 @@ func main() {
 		DBConnectionURL: os.Getenv("DB_CONNECTION_URL"),
 	}
 
-	// TODO: Add my auth DB here
-	dummyAuthDB := []auth.DummySessionAccessTokenTuple{}
+	dbInstance, err := sqlx.Connect("postgres", config.DBConnectionURL)
+	if err != nil {
+		log.Fatal("error opening db: %v\n", err)
+	}
 
 	r := chi.NewRouter()
 
-	mw := auth.AuthMiddleware(http.DefaultServeMux, &dummyAuthDB)
+	mw := auth.AuthMiddleware(http.DefaultServeMux, dbInstance)
 	r.Use(mw)
 
 	r.Get("/login", func(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +89,7 @@ func main() {
 	})
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		session := r.Context().Value(auth.DummySessionAccessTokenTuple{})
+		session := r.Context().Value(db.Account{})
 
 		fp := path.Join("templates", "index.html")
 		tmpl, err := template.ParseFiles(fp)
@@ -98,7 +104,7 @@ func main() {
 	})
 
 	r.Get("/oauth/redirect", func(w http.ResponseWriter, r *http.Request) {
-		auth.GithubOauthRedirectHandler(w, r, *log, config, &dummyAuthDB)
+		auth.GithubOauthRedirectHandler(w, r, *log, dbInstance, config)
 	})
 
 	log.Info("Starting server..")
