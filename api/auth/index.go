@@ -17,19 +17,21 @@ import (
 func AuthRouter(log log.Logger, dbInstance *sqlx.DB, config types.Config, r chi.Router) func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			session := r.Context().Value(db.Account{})
-			if session == nil {
+			apiAuthResponse := IAPIAuthResponse{}
+			value := r.Context().Value(db.Account{})
+			if value == nil {
 				http.Error(w, "Session not found", http.StatusNotFound)
 			}
+			apiAuthResponse.Account = value.(db.Account)
 
-			sessionJSON, err := json.Marshal(session)
+			apiAuthResponseJSON, err := json.Marshal(apiAuthResponse)
 			if err != nil {
 				http.Error(w, "Error encoding session to JSON", http.StatusInternalServerError)
 				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
-			_, err = w.Write(sessionJSON)
+			_, err = w.Write(apiAuthResponseJSON)
 			if err != nil {
 				http.Error(w, "Error writing out session JSON", http.StatusNotFound)
 			}

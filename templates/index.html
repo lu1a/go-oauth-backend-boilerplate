@@ -34,10 +34,10 @@
       // Handle the JSON response
       console.log(data);
       let announceName = document.querySelector("p#announce-name");
-      announceName.innerHTML = `Welcome ${data.name} from ${data.location}`;
+      announceName.innerHTML = `Welcome ${data.account.name} from ${data.account.location}`;
 
       let profileAvatar = document.querySelector("img#avatar");
-      profileAvatar.src = data.avatar_url;
+      profileAvatar.src = data.account.avatar_url;
     })
     .catch(error => {
       // Handle errors
