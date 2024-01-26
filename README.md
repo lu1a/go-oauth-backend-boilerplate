@@ -13,20 +13,20 @@ There will be:
 │   ...
 │
 └───/api
-│   │   index.go
+│   │   api.go
 │   └───routers
 │       └───/account
-│           │   index.go
+│           │   account.go
 │           │   types.go
 │           │   test.go
 │           │   ...
 │       └───/organisation
-│           │   index.go
+│           │   organisation.go
 │           │   types.go
 │           │   test.go
 │           │   ...
 │       └───/project
-│           │   index.go
+│           │   project.go
 │           │   types.go
 │           │   test.go
 │           │   ...
